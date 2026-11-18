@@ -997,4 +997,315 @@
             labels: sorted.length ? sorted.map(l => l.date) : ['No Labs Logged'],
             datasets: [
               {
-                label: 'HDL (mg/dL)',
+                label: 'HDL (mg/dL)',                data: sorted.length ? sorted.map(l => l.hdl) : [0],
+                borderColor: '#4f46e5',
+                backgroundColor: '#4f46e5',
+                yAxisID: 'y',
+                tension: 0.25,
+                pointRadius: 5
+              },
+              {
+                label: '30d Exercise Rate (%)',
+                data: sorted.length ? sorted.map(l => getPrior30DayExerciseRate(l.date)) : [0],
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                yAxisID: 'y1',
+                tension: 0.25,
+                fill: true,
+                pointRadius: 4
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { type: 'linear', position: 'left', beginAtZero: false, title: { display: true, text: 'HDL (mg/dL)' } },
+              y1: { type: 'linear', position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: 'Exercise %' } }
+            }
+          }
+        });
+      }
+
+      // ---------- Tab Switching & Render All ----------
+      function switchTab(tab) {
+        activeTab = tab;
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          const active = btn.dataset.tab === tab;
+          btn.className = active
+            ? 'tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-semibold border-b-2 border-emerald-600 text-emerald-700 transition'
+            : 'tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition';
+        });
+        document.getElementById('view-today').classList.toggle('hidden', tab !== 'today');
+        document.getElementById('view-reports').classList.toggle('hidden', tab !== 'reports');
+        document.getElementById('view-labs').classList.toggle('hidden', tab !== 'labs');
+        renderAll();
+      }
+
+      function renderAll() {
+        if (activeTab === 'today') renderToday();
+        else if (activeTab === 'reports') renderReports();
+        else if (activeTab === 'labs') renderLabs();
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      // ---------- Modals ----------
+      function openHabitModal(habit) {
+        const modal = document.getElementById('habitModal');
+        document.getElementById('habitModalTitle').textContent = habit ? 'Edit Habit' : 'New Habit';
+        document.getElementById('habitIdInput').value = habit ? habit.id : '';
+        document.getElementById('habitNameInput').value = habit ? habit.name : '';
+        document.getElementById('habitCategoryInput').value = habit ? habit.category : 'Health & Exercise';
+        document.getElementById('habitHdlFlagInput').checked = habit ? Boolean(habit.isHealthExercise) : true;
+        document.getElementById('habitCueInput').value = habit ? (habit.cue || '') : '';
+        document.getElementById('habitRewardInput').value = habit ? (habit.reward || '') : '';
+        modal.classList.remove('hidden');
+        document.getElementById('habitNameInput').focus();
+      }
+
+      function closeHabitModal() {
+        document.getElementById('habitModal').classList.add('hidden');
+      }
+
+      function openBackupModal() {
+        document.getElementById('resetConfirmArea').classList.remove('hidden');
+        document.getElementById('resetConfirmActions').classList.add('hidden');
+        document.getElementById('backupModal').classList.remove('hidden');
+      }
+
+      function closeBackupModal() {
+        document.getElementById('backupModal').classList.add('hidden');
+      }
+
+      // ---------- Event Listeners ----------
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      });
+
+      document.getElementById('prevDayBtn').addEventListener('click', () => {
+        selectedDate = addDays(selectedDate, -1);
+        renderToday();
+      });
+
+      document.getElementById('nextDayBtn').addEventListener('click', () => {
+        selectedDate = addDays(selectedDate, 1);
+        renderToday();
+      });
+
+      document.getElementById('jumpTodayBtn').addEventListener('click', () => {
+        selectedDate = toDateKey(new Date());
+        renderToday();
+      });
+
+      document.getElementById('categoryFilterBar').addEventListener('click', e => {
+        const btn = e.target.closest('.cat-pill');
+        if (!btn) return;
+        categoryFilter = btn.dataset.cat;
+        renderToday();
+      });
+
+      document.getElementById('habitCardsList').addEventListener('click', e => {
+        const editBtn = e.target.closest('[data-edit-habit]');
+        if (editBtn) {
+          e.stopPropagation();
+          const h = state.habits.find(item => item.id === editBtn.dataset.editHabit);
+          if (h) openHabitModal(h);
+          return;
+        }
+        const delBtn = e.target.closest('[data-delete-habit]');
+        if (delBtn) {
+          e.stopPropagation();
+          const id = delBtn.dataset.deleteHabit;
+          state.habits = state.habits.filter(item => item.id !== id);
+          saveState();
+          renderToday();
+          showToast('Habit removed');
+          return;
+        }
+        const card = e.target.closest('[data-habit-card]');
+        if (card) {
+          toggleHabitLog(selectedDate, card.dataset.habitCard);
+        }
+      });
+
+      // Reports listeners
+      document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          reportPeriod = btn.dataset.period;
+          renderReports();
+        });
+      });
+
+      document.getElementById('reportDetailContainer').addEventListener('click', e => {
+        const cellBtn = e.target.closest('[data-grid-toggle]');
+        if (!cellBtn) return;
+        const [dKey, hId] = cellBtn.dataset.gridToggle.split('|');
+        toggleHabitLog(dKey, hId);
+      });
+
+      // Habit Modal listeners
+      document.getElementById('openAddHabitBtn').addEventListener('click', () => openHabitModal(null));
+      document.getElementById('closeHabitModalBtn').addEventListener('click', closeHabitModal);
+      document.getElementById('cancelHabitModalBtn').addEventListener('click', closeHabitModal);
+
+      document.getElementById('habitForm').addEventListener('submit', e => {
+        e.preventDefault();
+        const id = document.getElementById('habitIdInput').value;
+        const name = document.getElementById('habitNameInput').value.trim();
+        if (!name) return;
+        const payload = {
+          name,
+          category: document.getElementById('habitCategoryInput').value,
+          isHealthExercise: document.getElementById('habitHdlFlagInput').checked,
+          cue: document.getElementById('habitCueInput').value.trim(),
+          reward: document.getElementById('habitRewardInput').value.trim()
+        };
+        if (id) {
+          const idx = state.habits.findIndex(h => h.id === id);
+          if (idx !== -1) state.habits[idx] = { ...state.habits[idx], ...payload };
+          showToast('Habit updated');
+        } else {
+          state.habits.push({ id: 'h_' + Date.now(), ...payload });
+          showToast('Habit added');
+        }
+        saveState();
+        closeHabitModal();
+        renderAll();
+      });
+
+      // Labs listeners
+      document.getElementById('labDate').value = toDateKey(new Date());
+      document.getElementById('labForm').addEventListener('submit', e => {
+        e.preventDefault();
+        const date = document.getElementById('labDate').value;
+        const hdl = Number(document.getElementById('labHdl').value);
+        if (!date || !hdl) return;
+        const ldlVal = document.getElementById('labLdl').value;
+        const totalVal = document.getElementById('labTotal').value;
+        const trigVal = document.getElementById('labTrig').value;
+        state.labs.push({
+          id: 'lab_' + Date.now(),
+          date,
+          hdl,
+          ldl: ldlVal ? Number(ldlVal) : null,
+          total: totalVal ? Number(totalVal) : null,
+          triglycerides: trigVal ? Number(trigVal) : null,
+          notes: document.getElementById('labNotes').value.trim()
+        });
+        saveState();
+        e.target.reset();
+        document.getElementById('labDate').value = toDateKey(new Date());
+        renderLabs();
+        showToast('Lab report saved locally');
+      });
+
+      document.getElementById('labHistoryList').addEventListener('click', e => {
+        const del = e.target.closest('[data-delete-lab]');
+        if (!del) return;
+        state.labs = state.labs.filter(l => l.id !== del.dataset.deleteLab);
+        saveState();
+        renderLabs();
+        showToast('Lab entry deleted');
+      });
+
+      // Backup Modal listeners
+      document.getElementById('openBackupBtn').addEventListener('click', openBackupModal);
+      document.getElementById('bannerExportBtn').addEventListener('click', openBackupModal);
+      document.getElementById('closeBackupModalBtn').addEventListener('click', closeBackupModal);
+
+      document.getElementById('exportJsonBtn').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `habit-tracker-backup-${toDateKey(new Date())}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('JSON backup downloaded');
+      });
+
+      document.getElementById('exportCsvBtn').addEventListener('click', () => {
+        const header = ['Date', 'Habit', 'Category', 'Exercise', 'Completed'];
+        const rows = [header.join(',')];
+        Object.keys(state.logs).sort().forEach(dKey => {
+          state.habits.forEach(h => {
+            const done = isChecked(dKey, h.id) ? 'Yes' : 'No';
+            rows.push([
+              dKey,
+              `"${h.name.replace(/"/g, '""')}"`,
+              `"${h.category.replace(/"/g, '""')}"`,
+              h.isHealthExercise ? 'Yes' : 'No',
+              done
+            ].join(','));
+          });
+        });
+        const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `habit-logs-${toDateKey(new Date())}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('CSV exported');
+      });
+
+      document.getElementById('importJsonInput').addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          try {
+            const parsed = JSON.parse(ev.target.result);
+            if (!Array.isArray(parsed.habits)) throw new Error('Invalid format');
+            state = {
+              habits: parsed.habits,
+              logs: parsed.logs || {},
+              labs: parsed.labs || []
+            };
+            saveState();
+            closeBackupModal();
+            renderAll();
+            showToast('Backup restored');
+          } catch (err) {
+            showToast('Invalid backup file');
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+
+      document.getElementById('requestResetBtn').addEventListener('click', () => {
+        document.getElementById('resetConfirmArea').classList.add('hidden');
+        document.getElementById('resetConfirmActions').classList.remove('hidden');
+      });
+      document.getElementById('cancelResetBtn').addEventListener('click', () => {
+        document.getElementById('resetConfirmActions').classList.add('hidden');
+        document.getElementById('resetConfirmArea').classList.remove('hidden');
+      });
+      document.getElementById('confirmResetBtn').addEventListener('click', () => {
+        state = {
+          habits: STARTER_HABITS.map(h => ({ ...h })),
+          logs: {},
+          labs: []
+        };
+        saveState();
+        closeBackupModal();
+        renderAll();
+        showToast('Reset to starter habits');
+      });
+
+      // Init
+      loadState();
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
