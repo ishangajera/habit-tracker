@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Habit Tracker</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tap-card {
+      transition: transform 0.12s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+      user-select: none;
+    }
+    .tap-card:active {
+      transform: scale(0.985);
+    }
+    @keyframes popIn {
+      0% { transform: scale(0.85); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.18s ease-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+
+  <!-- Top Navigation -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-sm">
+          ✓
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900 truncate">Habit Tracker</h1>
+          <p class="text-xs text-slate-500 hidden sm:block">Local-only browser storage • Tap &amp; go</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="openAddHabitBtn" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition">
+          <span>+</span>
+          <span>New Habit</span>
+        </button>
+        <button id="openBackupBtn" type="button" title="Backup &amp; Settings" class="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 transition" aria-label="Backup and settings">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Primary Tabs -->
+    <nav class="max-w-4xl mx-auto px-4 flex gap-1 border-t border-slate-100" aria-label="Views">
+      <button type="button" data-tab="today" class="tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-semibold border-b-2 border-emerald-600 text-emerald-700 transition">
+        Today
+      </button>
+      <button type="button" data-tab="reports" class="tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition">
+        Reports
+      </button>
+      <button type="button" data-tab="labs" class="tab-btn flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition">
+        Lab Reports
+      </button>
+    </nav>
+  </header>
+
+  <!-- Storage Warning Banner (shown if localStorage is blocked, e.g. Google Sites embed) -->
+  <div id="storageWarningBanner" class="hidden bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-900">
+    <div class="max-w-4xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+      <span><strong>⚠️ Temporary Mode:</strong> Browser storage is blocked in this embed (e.g. Google Sites), so activity won't save on reload. Host on GitHub Pages / Netlify or open the HTML file directly for persistent storage.</span>
+      <button id="bannerExportBtn" type="button" class="px-2.5 py-1 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-950 font-semibold shrink-0">Export Backup</button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-5 space-y-5">
+
+    <!-- ==================== TODAY VIEW ==================== -->
+    <section id="view-today" class="space-y-5">
+      <!-- Date & Progress Banner -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <button id="prevDayBtn" type="button" class="w-9 h-9 rounded-xl border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-700 font-semibold" aria-label="Previous day">‹</button>
+            <div>
+              <div id="selectedDateLabel" class="text-base sm:text-lg font-bold text-slate-900">Today</div>
+              <div id="selectedDateSub" class="text-xs text-slate-500"></div>
+            </div>
+            <button id="nextDayBtn" type="button" class="w-9 h-9 rounded-xl border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-700 font-semibold" aria-label="Next day">›</button>
+            <button id="jumpTodayBtn" type="button" class="hidden ml-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700">Today</button>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <div class="text-right">
+              <div id="todayScoreText" class="text-xl sm:text-2xl font-extrabold text-emerald-600">0 / 0</div>
+              <div class="text-xs text-slate-500">Completed</div>
+            </div>
+            <div class="h-10 w-px bg-slate-200"></div>
+            <div class="text-right">
+              <div id="todayHdlRate" class="text-xl sm:text-2xl font-extrabold text-indigo-600">0%</div>
+              <div class="text-xs text-slate-500">Exercise</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+          <div id="todayProgressBar" class="bg-emerald-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Category Filter Pills -->
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div id="categoryFilterBar" class="flex items-center gap-1.5 flex-wrap">
+          <button type="button" data-cat="all" class="cat-pill px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-900 text-white">All</button>
+          <button type="button" data-cat="Health & Exercise" class="cat-pill px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-600 hover:bg-slate-100">Health &amp; Exercise</button>
+          <button type="button" data-cat="Family & Energy" class="cat-pill px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-600 hover:bg-slate-100">Family &amp; Energy</button>
+          <button type="button" data-cat="Custom" class="cat-pill px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-600 hover:bg-slate-100">Other</button>
+        </div>
+        <span class="text-xs text-slate-400">Tap any card to check off</span>
+      </div>
+
+      <!-- Habit Tap Cards -->
+      <div id="habitCardsList" class="space-y-3"></div>
+    </section>
+
+    <!-- ==================== REPORTS VIEW ==================== -->
+    <section id="view-reports" class="hidden space-y-5">
+      <!-- Period Switcher -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div class="inline-flex rounded-xl bg-slate-100 p-1">
+          <button type="button" data-period="daily" class="period-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-white text-slate-900 shadow-sm">Daily</button>
+          <button type="button" data-period="weekly" class="period-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900">Weekly</button>
+          <button type="button" data-period="monthly" class="period-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900">Monthly</button>
+        </div>
+        <div id="reportRangeLabel" class="text-xs sm:text-sm font-semibold text-slate-600"></div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <div class="text-xs font-medium text-slate-500">Completion Rate</div>
+          <div id="kpiRate" class="text-2xl font-extrabold text-slate-900 mt-1">0%</div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <div class="text-xs font-medium text-slate-500">Total Check-Ins</div>
+          <div id="kpiCheckins" class="text-2xl font-extrabold text-emerald-600 mt-1">0</div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <div class="text-xs font-medium text-slate-500">Exercise Rate</div>
+          <div id="kpiHdlExercise" class="text-2xl font-extrabold text-indigo-600 mt-1">0%</div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <div class="text-xs font-medium text-slate-500">Best Habit Streak</div>
+          <div id="kpiStreak" class="text-2xl font-extrabold text-amber-600 mt-1">0d</div>
+        </div>
+      </div>
+
+      <!-- Report Dynamic Container -->
+      <div id="reportDetailContainer" class="space-y-5"></div>
+    </section>
+
+    <!-- ==================== LABS & HDL VIEW ==================== -->
+    <section id="view-labs" class="hidden space-y-5">
+      <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 text-xs sm:text-sm text-indigo-900 flex items-start gap-3">
+        <span class="text-lg leading-none">🔒</span>
+        <div>
+          <span class="font-semibold">100% Local Browser Storage:</span> Your blood report numbers stay strictly on this device in your browser's local storage. Nothing is uploaded to any server. Always review lab trends with your physician.
+        </div>
+      </div>
+
+      <!-- Log New Lab Result -->
+      <form id="labForm" class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
+        <h2 class="text-base font-bold text-slate-900">Log Blood / Cholesterol Report</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div class="col-span-2 sm:col-span-1">
+            <label for="labDate" class="block text-xs font-semibold text-slate-600 mb-1">Test Date</label>
+            <input id="labDate" type="date" required class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label for="labHdl" class="block text-xs font-semibold text-slate-600 mb-1">HDL (Good) mg/dL</label>
+            <input id="labHdl" type="number" min="10" max="200" step="1" placeholder="e.g. 48" required class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label for="labLdl" class="block text-xs font-semibold text-slate-600 mb-1">LDL mg/dL</label>
+            <input id="labLdl" type="number" min="10" max="400" step="1" placeholder="e.g. 110" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label for="labTotal" class="block text-xs font-semibold text-slate-600 mb-1">Total Chol.</label>
+            <input id="labTotal" type="number" min="50" max="600" step="1" placeholder="e.g. 185" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label for="labTrig" class="block text-xs font-semibold text-slate-600 mb-1">Triglycerides</label>
+            <input id="labTrig" type="number" min="20" max="1000" step="1" placeholder="e.g. 130" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+          <div class="flex-1">
+            <label for="labNotes" class="block text-xs font-semibold text-slate-600 mb-1">Exercise / Context Note (optional)</label>
+            <input id="labNotes" type="text" placeholder="e.g. Consistent 30-min brisk walks + push-ups for 8 weeks" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <button type="submit" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm transition shrink-0">
+            Save Lab Entry
+          </button>
+        </div>
+      </form>
+
+      <!-- HDL vs Exercise Chart -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <h3 class="text-base font-bold text-slate-900">HDL Trend vs. 30-Day Exercise Consistency</h3>
+            <p class="text-xs text-slate-500">Compares each logged HDL result against your exercise habit rate in the 30 days prior to that test</p>
+          </div>
+        </div>
+        <div class="relative h-64">
+          <canvas id="labChartCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Logged Lab History -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+        <h3 class="text-base font-bold text-slate-900">Saved Blood Reports</h3>
+        <div id="labHistoryList" class="overflow-x-auto"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== ADD / EDIT HABIT MODAL ==================== -->
+  <div id="habitModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 w-full max-w-md p-5 shadow-xl space-y-4 animate-pop">
+      <div class="flex items-center justify-between">
+        <h2 id="habitModalTitle" class="text-lg font-bold text-slate-900">New Habit</h2>
+        <button id="closeHabitModalBtn" type="button" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center font-bold">✕</button>
+      </div>
+      <form id="habitForm" class="space-y-3.5">
+        <input id="habitIdInput" type="hidden" />
+        <div>
+          <label for="habitNameInput" class="block text-xs font-semibold text-slate-600 mb-1">Habit Name</label>
+          <input id="habitNameInput" type="text" required placeholder="e.g. 2-Minute Morning Stretch" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="habitCategoryInput" class="block text-xs font-semibold text-slate-600 mb-1">Category</label>
+            <select id="habitCategoryInput" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <option value="Health & Exercise">Health &amp; Exercise</option>
+              <option value="Family & Energy">Family &amp; Energy</option>
+              <option value="Work & Focus">Work &amp; Focus</option>
+              <option value="Custom">Custom</option>
+            </select>
+          </div>
+          <div class="flex items-end pb-1">
+            <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+              <input id="habitHdlFlagInput" type="checkbox" checked class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500" />
+              <span>Counts toward Exercise Goal</span>
+            </label>
+          </div>
+        </div>
+        <div>
+          <label for="habitCueInput" class="block text-xs font-semibold text-slate-600 mb-1">Cue (When / Trigger)</label>
+          <input id="habitCueInput" type="text" placeholder="e.g. Feet hitting the floor when waking up" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+        </div>
+        <div>
+          <label for="habitRewardInput" class="block text-xs font-semibold text-slate-600 mb-1">Reward</label>
+          <input id="habitRewardInput" type="text" placeholder="e.g. Feeling energized + checking off streak" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button id="cancelHabitModalBtn" type="button" class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm">Save Habit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== BACKUP & SETTINGS MODAL ==================== -->
+  <div id="backupModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 w-full max-w-md p-5 shadow-xl space-y-4 animate-pop">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-slate-900">Backup &amp; Local Data</h2>
+        <button id="closeBackupModalBtn" type="button" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center font-bold">✕</button>
+      </div>
+      <p class="text-xs text-slate-600 leading-relaxed">
+        Everything is stored locally in this browser. Export a JSON backup regularly—especially if you switch browsers or clear site data.
+      </p>
+      <div class="space-y-2.5">
+        <button id="exportJsonBtn" type="button" class="w-full px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition flex items-center justify-between">
+          <span>Export Full Backup (.json)</span>
+          <span>↓</span>
+        </button>
+        <button id="exportCsvBtn" type="button" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-800 text-sm font-semibold transition flex items-center justify-between">
+          <span>Export Habit Logs (.csv)</span>
+          <span>↓</span>
+        </button>
+        <label class="w-full px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-800 text-sm font-semibold transition flex items-center justify-between cursor-pointer">
+          <span>Import Backup (.json)</span>
+          <span>↑</span>
+          <input id="importJsonInput" type="file" accept="application/json,.json" class="hidden" />
+        </label>
+      </div>
+      <div class="border-t border-slate-200 pt-3">
+        <div id="resetConfirmArea" class="flex items-center justify-between gap-2">
+          <span class="text-xs text-slate-500">Reset to starter habits &amp; clear logs?</span>
+          <button id="requestResetBtn" type="button" class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold">Reset Data</button>
+        </div>
+        <div id="resetConfirmActions" class="hidden flex items-center justify-between gap-2 bg-rose-50 p-2.5 rounded-xl">
+          <span class="text-xs font-semibold text-rose-800">Erase all local logs &amp; labs?</span>
+          <div class="flex gap-1.5">
+            <button id="cancelResetBtn" type="button" class="px-2.5 py-1 rounded-lg bg-white text-slate-700 text-xs font-semibold border border-slate-200">No</button>
+            <button id="confirmResetBtn" type="button" class="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-semibold">Yes, Reset</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs sm:text-sm font-medium shadow-lg"></div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'habit_hdl_tracker_v1';
+
+      const STARTER_HABITS = [
+        {
+          id: 'h_stretch',
+          name: '2-Minute Morning Stretch',
+          category: 'Health & Exercise',
+          cue: 'Feet hitting the floor upon waking',
+          reward: 'Energized start + mark check',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_pushups',
+          name: 'Countertop Push-Ups',
+          category: 'Health & Exercise',
+          cue: 'Waiting for morning coffee to brew',
+          reward: 'First sip of coffee',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_walk',
+          name: 'Brisk Walk After Drop-Off',
+          category: 'Health & Exercise',
+          cue: 'Closing car door after dropping son off',
+          reward: 'Fresh air & streak momentum',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_work_move',
+          name: 'Pace on Calls / Break Squats',
+          category: 'Health & Exercise',
+          cue: 'Audio calls & bathroom breaks',
+          reward: 'Relieve tension & sustained focus',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_play',
+          name: 'Active Play with Son',
+          category: 'Family & Energy',
+          cue: 'Afternoon playtime (e.g., bear crawls together)',
+          reward: 'His laughter & family movement check-off',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_tricep_dips',
+          name: 'Countertop Tricep Dips',
+          category: 'Health & Exercise',
+          cue: 'Waiting for water to boil while prepping dinner (turn on music)',
+          reward: 'Complete daily movement goal before dining',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_wind_down',
+          name: 'Wind-Down Bedtime Stretching',
+          category: 'Health & Exercise',
+          cue: 'Dimming the lights right before sleep',
+          reward: 'Decompression, quiet, and ready to repeat tomorrow',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_seated_calf',
+          name: 'Seated Calf Raises',
+          category: 'Health & Exercise',
+          cue: 'While seated (plant toes, lift heels high, hold 1s, slowly lower)',
+          reward: 'Circulation & lower-leg activation',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_seated_march',
+          name: 'Seated Marches',
+          category: 'Health & Exercise',
+          cue: 'While seated (sit tall, brace core, alternate lifting knees)',
+          reward: 'Lower-ab engagement without leaning back',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_torso_twist',
+          name: 'Torso Twists',
+          category: 'Health & Exercise',
+          cue: 'While seated (hips forward, twist upper body over shoulder, switch sides)',
+          reward: 'Spine mobility & core release',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_kegels',
+          name: 'Kegels (Pelvic Floor)',
+          category: 'Health & Exercise',
+          cue: 'While seated (contract pelvic floor 3–5s, release; avoid 30-min sitting)',
+          reward: 'Pelvic floor strength & reduced strain',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_dish_balance',
+          name: 'Single-Leg Balance',
+          category: 'Health & Exercise',
+          cue: 'While washing dishes (stand on one leg, switch every few dishes)',
+          reward: 'Core & ankle stability',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_dish_calf',
+          name: 'Standing Calf Raises',
+          category: 'Health & Exercise',
+          cue: 'While washing dishes (push onto toes, steady rhythm or 10s holds)',
+          reward: 'Stronger calves & active sink time',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_dish_glutes',
+          name: 'Glute Squeezes & Kickbacks',
+          category: 'Health & Exercise',
+          cue: 'While washing dishes (5s glute squeeze or lift straight leg backward)',
+          reward: 'Posterior chain activation',
+          isHealthExercise: true
+        },
+        {
+          id: 'h_dish_side_lift',
+          name: 'Side Leg Lifts',
+          category: 'Health & Exercise',
+          cue: 'While washing dishes (lift leg out to side without resting foot, alternate)',
+          reward: 'Outer hip strength',
+          isHealthExercise: true
+        }
+      ];
+
+      let state = {
+        habits: [],
+        logs: {}, // { 'YYYY-MM-DD': { habitId: true } }
+        labs: [], // [{ id, date, hdl, ldl, total, triglycerides, notes }]
+        addedPacks: []
+      };
+
+      let activeTab = 'today';
+      let reportPeriod = 'weekly';
+      let categoryFilter = 'all';
+      let selectedDate = toDateKey(new Date());
+      let reportChartInstance = null;
+      let labChartInstance = null;
+      let toastTimer = null;
+      let storageAvailable = true;
+
+      // ---------- Date Helpers ----------
+      function toDateKey(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+
+      function parseDateKey(key) {
+        const [y, m, d] = key.split('-').map(Number);
+        return new Date(y, m - 1, d);
+      }
+
+      function addDays(key, delta) {
+        const d = parseDateKey(key);
+        d.setDate(d.getDate() + delta);
+        return toDateKey(d);
+      }
+
+      function formatFriendlyDate(key) {
+        const today = toDateKey(new Date());
+        const yesterday = addDays(today, -1);
+        const d = parseDateKey(key);
+        const formatted = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        if (key === today) return { title: 'Today', sub: formatted };
+        if (key === yesterday) return { title: 'Yesterday', sub: formatted };
+        return { title: d.toLocaleDateString(undefined, { weekday: 'long' }), sub: formatted };
+      }
+
+      function getWeekStartKey(refKey) {
+        const d = parseDateKey(refKey);
+        const day = d.getDay(); // 0=Sun..6=Sat
+        const diff = day === 0 ? -6 : 1 - day; // Monday start
+        d.setDate(d.getDate() + diff);
+        return toDateKey(d);
+      }
+
+      // ---------- Storage ----------
+      function checkStorage() {
+        try {
+          const testKey = '__ht_test__';
+          localStorage.setItem(testKey, '1');
+          localStorage.removeItem(testKey);
+          storageAvailable = true;
+        } catch (e) {
+          storageAvailable = false;
+        }
+        const banner = document.getElementById('storageWarningBanner');
+        if (banner) banner.classList.toggle('hidden', storageAvailable);
+      }
+
+      function loadState() {
+        checkStorage();
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            state.habits = Array.isArray(parsed.habits) && parsed.habits.length ? parsed.habits : STARTER_HABITS.map(h => ({ ...h }));
+            state.logs = parsed.logs && typeof parsed.logs === 'object' ? parsed.logs : {};
+            state.labs = Array.isArray(parsed.labs) ? parsed.labs : [];
+            state.addedPacks = Array.isArray(parsed.addedPacks) ? parsed.addedPacks : [];
+            if (!state.addedPacks.includes('seated_dishes_v1') || !state.addedPacks.includes('evening_routine_v1')) {
+              const existingIds = new Set(state.habits.map(h => h.id));
+              STARTER_HABITS.forEach(h => {
+                if (!existingIds.has(h.id)) state.habits.push({ ...h });
+              });
+              if (!state.addedPacks.includes('seated_dishes_v1')) state.addedPacks.push('seated_dishes_v1');
+              if (!state.addedPacks.includes('evening_routine_v1')) state.addedPacks.push('evening_routine_v1');
+              saveState();
+            }
+            return;
+          }
+        } catch (e) {
+          storageAvailable = false;
+        }
+        state = {
+          habits: STARTER_HABITS.map(h => ({ ...h })),
+          logs: {},
+          labs: [],
+          addedPacks: ['seated_dishes_v1', 'evening_routine_v1']
+        };
+        saveState();
+      }
+
+      function saveState() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } catch (e) {
+          storageAvailable = false;
+          const banner = document.getElementById('storageWarningBanner');
+          if (banner) banner.classList.remove('hidden');
+        }
+      }
+
+      function showToast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.add('hidden'), 2400);
+      }
+
+      // ---------- Calculations ----------
+      function isChecked(dateKey, habitId) {
+        return Boolean(state.logs[dateKey] && state.logs[dateKey][habitId]);
+      }
+
+      function toggleHabitLog(dateKey, habitId) {
+        if (!state.logs[dateKey]) state.logs[dateKey] = {};
+        if (state.logs[dateKey][habitId]) {
+          delete state.logs[dateKey][habitId];
+        } else {
+          state.logs[dateKey][habitId] = true;
+        }
+        saveState();
+        renderAll();
+      }
+
+      function getHabitStreak(habitId) {
+        const today = toDateKey(new Date());
+        let streak = 0;
+        let cursor = isChecked(today, habitId) ? today : addDays(today, -1);
+        while (isChecked(cursor, habitId)) {
+          streak++;
+          cursor = addDays(cursor, -1);
+        }
+        return streak;
+      }
+
+      function getPeriodStats(dateKeys) {
+        const totalHabits = state.habits.length;
+        const hdlHabits = state.habits.filter(h => h.isHealthExercise);
+        let checkins = 0;
+        let possible = dateKeys.length * totalHabits;
+        let hdlCheckins = 0;
+        let hdlPossible = dateKeys.length * hdlHabits.length;
+
+        dateKeys.forEach(k => {
+          state.habits.forEach(h => {
+            if (isChecked(k, h.id)) {
+              checkins++;
+              if (h.isHealthExercise) hdlCheckins++;
+            }
+          });
+        });
+
+        const rate = possible > 0 ? Math.round((checkins / possible) * 100) : 0;
+        const hdlRate = hdlPossible > 0 ? Math.round((hdlCheckins / hdlPossible) * 100) : 0;
+        const bestStreak = state.habits.reduce((max, h) => Math.max(max, getHabitStreak(h.id)), 0);
+
+        return { checkins, possible, rate, hdlRate, bestStreak };
+      }
+
+      // ---------- Render: Today ----------
+      function renderToday() {
+        const { title, sub } = formatFriendlyDate(selectedDate);
+        document.getElementById('selectedDateLabel').textContent = title;
+        document.getElementById('selectedDateSub').textContent = sub;
+
+        const todayKey = toDateKey(new Date());
+        document.getElementById('jumpTodayBtn').classList.toggle('hidden', selectedDate === todayKey);
+
+        const total = state.habits.length;
+        const doneCount = state.habits.filter(h => isChecked(selectedDate, h.id)).length;
+        const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+        const hdlHabits = state.habits.filter(h => h.isHealthExercise);
+        const hdlDone = hdlHabits.filter(h => isChecked(selectedDate, h.id)).length;
+        const hdlPct = hdlHabits.length > 0 ? Math.round((hdlDone / hdlHabits.length) * 100) : 0;
+
+        document.getElementById('todayScoreText').textContent = `${doneCount} / ${total}`;
+        document.getElementById('todayHdlRate').textContent = `${hdlPct}%`;
+        document.getElementById('todayProgressBar').style.width = `${pct}%`;
+
+        // Filter pills UI
+        document.querySelectorAll('.cat-pill').forEach(btn => {
+          const active = btn.dataset.cat === categoryFilter;
+          btn.className = active
+            ? 'cat-pill px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-900 text-white'
+            : 'cat-pill px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-600 hover:bg-slate-100';
+        });
+
+        const listEl = document.getElementById('habitCardsList');
+        const filtered = state.habits.filter(h => {
+          if (categoryFilter === 'all') return true;
+          if (categoryFilter === 'Custom') return h.category !== 'Health & Exercise' && h.category !== 'Family & Energy';
+          return h.category === categoryFilter;
+        });
+
+        if (!filtered.length) {
+          listEl.innerHTML = `
+            <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+              No habits in this category yet. Tap <strong>+ New Habit</strong> to add one.
+            </div>`;
+          return;
+        }
+
+        listEl.innerHTML = filtered.map(h => {
+          const checked = isChecked(selectedDate, h.id);
+          const streak = getHabitStreak(h.id);
+          return `
+            <div data-habit-card="${h.id}" class="tap-card cursor-pointer rounded-2xl border p-4 flex items-center justify-between gap-3 ${checked ? 'bg-emerald-50/80 border-emerald-300 shadow-xs' : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'}">
+              <div class="flex items-start gap-3.5 min-w-0 flex-1">
+                <div class="mt-0.5 w-7 h-7 rounded-xl border-2 flex items-center justify-center shrink-0 transition ${checked ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 bg-white text-transparent'}">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                  </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-bold text-sm sm:text-base ${checked ? 'text-emerald-950 line-through decoration-emerald-400' : 'text-slate-900'}">${escapeHtml(h.name)}</span>
+                    ${h.isHealthExercise ? '<span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-semibold">Exercise</span>' : ''}
+                    ${streak > 0 ? `<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-semibold">🔥 ${streak}d</span>` : ''}
+                  </div>
+                  ${h.cue ? `<div class="text-xs text-slate-500 mt-1"><span class="font-semibold text-slate-600">Cue:</span> ${escapeHtml(h.cue)}</div>` : ''}
+                  ${h.reward ? `<div class="text-xs text-slate-400 mt-0.5"><span class="font-semibold text-slate-500">Reward:</span> ${escapeHtml(h.reward)}</div>` : ''}
+                </div>
+              </div>
+              <div class="flex items-center gap-1 shrink-0">
+                <button type="button" data-edit-habit="${h.id}" title="Edit habit" class="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100" aria-label="Edit habit">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </button>
+                <button type="button" data-delete-habit="${h.id}" title="Delete habit" class="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50" aria-label="Delete habit">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </div>`;
+        }).join('');
+      }
+
+      // ---------- Render: Reports ----------
+      function renderReports() {
+        document.querySelectorAll('.period-btn').forEach(btn => {
+          const active = btn.dataset.period === reportPeriod;
+          btn.className = active
+            ? 'period-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-white text-slate-900 shadow-sm'
+            : 'period-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900';
+        });
+
+        const todayKey = toDateKey(new Date());
+        let dateKeys = [];
+        let rangeLabel = '';
+
+        if (reportPeriod === 'daily') {
+          dateKeys = [selectedDate];
+          rangeLabel = formatFriendlyDate(selectedDate).sub;
+        } else if (reportPeriod === 'weekly') {
+          const mon = getWeekStartKey(selectedDate);
+          dateKeys = Array.from({ length: 7 }, (_, i) => addDays(mon, i));
+          const s = parseDateKey(dateKeys[0]).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          const e = parseDateKey(dateKeys[6]).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+          rangeLabel = `${s} – ${e}`;
+        } else {
+          const ref = parseDateKey(selectedDate);
+          const y = ref.getFullYear();
+          const m = ref.getMonth();
+          const daysInMonth = new Date(y, m + 1, 0).getDate();
+          dateKeys = Array.from({ length: daysInMonth }, (_, i) => toDateKey(new Date(y, m, i + 1)));
+          rangeLabel = ref.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        }
+
+        document.getElementById('reportRangeLabel').textContent = rangeLabel;
+
+        const stats = getPeriodStats(dateKeys);
+        document.getElementById('kpiRate').textContent = `${stats.rate}%`;
+        document.getElementById('kpiCheckins').textContent = String(stats.checkins);
+        document.getElementById('kpiHdlExercise').textContent = `${stats.hdlRate}%`;
+        document.getElementById('kpiStreak').textContent = `${stats.bestStreak}d`;
+
+        const container = document.getElementById('reportDetailContainer');
+
+        if (reportChartInstance) {
+          reportChartInstance.destroy();
+          reportChartInstance = null;
+        }
+
+        if (reportPeriod === 'daily') {
+          const rows = state.habits.map(h => {
+            const done = isChecked(selectedDate, h.id);
+            return `
+              <div class="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+                <div>
+                  <div class="text-sm font-semibold text-slate-800">${escapeHtml(h.name)}</div>
+                  <div class="text-xs text-slate-500">${escapeHtml(h.category)}</div>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${done ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}">
+                  ${done ? 'Completed' : 'Pending'}
+                </span>
+              </div>`;
+          }).join('');
+
+          container.innerHTML = `
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+              <h3 class="text-base font-bold text-slate-900 mb-3">Daily Status Breakdown</h3>
+              <div>${rows || '<p class="text-sm text-slate-500">No habits configured.</p>'}</div>
+            </div>`;
+          return;
+        }
+
+        if (reportPeriod === 'weekly') {
+          const dayHeaders = dateKeys.map(k => {
+            const d = parseDateKey(k);
+            const label = d.toLocaleDateString(undefined, { weekday: 'short' });
+            const num = d.getDate();
+            const isToday = k === todayKey;
+            return `<th class="py-2 px-1.5 text-center text-xs font-semibold ${isToday ? 'text-emerald-700' : 'text-slate-500'}">${label}<br/><span class="text-[11px] font-normal">${num}</span></th>`;
+          }).join('');
+
+          const habitRows = state.habits.map(h => {
+            let rowDone = 0;
+            const cells = dateKeys.map(k => {
+              const checked = isChecked(k, h.id);
+              if (checked) rowDone++;
+              return `
+                <td class="py-2 px-1 text-center">
+                  <button type="button" data-grid-toggle="${k}|${h.id}" class="w-8 h-8 rounded-lg border text-xs font-bold transition ${checked ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-slate-200 text-slate-300 hover:border-slate-400'}" aria-label="Toggle ${escapeHtml(h.name)} on ${k}">
+                    ${checked ? '✓' : '·'}
+                  </button>
+                </td>`;
+            }).join('');
+            return `
+              <tr class="border-t border-slate-100">
+                <td class="py-2.5 pr-3 text-xs sm:text-sm font-semibold text-slate-800 min-w-[140px]">${escapeHtml(h.name)}</td>
+                ${cells}
+                <td class="py-2.5 pl-2 text-right text-xs font-bold text-slate-700">${rowDone}/7</td>
+              </tr>`;
+          }).join('');
+
+          container.innerHTML = `
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm overflow-x-auto">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-bold text-slate-900">Weekly Check-In Grid</h3>
+                <span class="text-xs text-slate-400">Tap any cell to toggle</span>
+              </div>
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr>
+                    <th class="py-2 pr-3 text-xs font-semibold text-slate-500">Habit</th>
+                    ${dayHeaders}
+                    <th class="py-2 pl-2 text-right text-xs font-semibold text-slate-500">Total</th>
+                  </tr>
+                </thead>
+                <tbody>${habitRows}</tbody>
+              </table>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+              <h3 class="text-base font-bold text-slate-900 mb-3">Daily Completion % (This Week)</h3>
+              <div class="relative h-64"><canvas id="reportChartCanvas"></canvas></div>
+            </div>`;
+
+          const chartLabels = dateKeys.map(k => parseDateKey(k).toLocaleDateString(undefined, { weekday: 'short' }));
+          const chartValues = dateKeys.map(k => {
+            if (!state.habits.length) return 0;
+            const c = state.habits.filter(h => isChecked(k, h.id)).length;
+            return Math.round((c / state.habits.length) * 100);
+          });
+
+          const ctx = document.getElementById('reportChartCanvas').getContext('2d');
+          reportChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: chartLabels,
+              datasets: [{
+                label: 'Completion %',
+                data: chartValues,
+                backgroundColor: '#10b981',
+                borderRadius: 8
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }
+              },
+              plugins: { legend: { display: false } }
+            }
+          });
+          return;
+        }
+
+        // Monthly View
+        const heatmapCells = dateKeys.map(k => {
+          const d = parseDateKey(k).getDate();
+          const total = state.habits.length || 1;
+          const done = state.habits.filter(h => isChecked(k, h.id)).length;
+          const pct = Math.round((done / total) * 100);
+          let bg = 'bg-slate-100 text-slate-500';
+          if (pct >= 80) bg = 'bg-emerald-600 text-white';
+          else if (pct >= 50) bg = 'bg-emerald-400 text-white';
+          else if (pct > 0) bg = 'bg-emerald-200 text-emerald-900';
+          return `
+            <div title="${k}: ${done}/${state.habits.length} (${pct}%)" class="rounded-xl p-2 text-center ${bg}">
+              <div class="text-xs font-bold">${d}</div>
+              <div class="text-[10px] opacity-85">${pct}%</div>
+            </div>`;
+        }).join('');
+
+        const habitMonthlyBars = state.habits.map(h => {
+          const done = dateKeys.filter(k => isChecked(k, h.id)).length;
+          const pct = dateKeys.length ? Math.round((done / dateKeys.length) * 100) : 0;
+          return `
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs font-semibold">
+                <span class="text-slate-800">${escapeHtml(h.name)}</span>
+                <span class="text-slate-500">${done}/${dateKeys.length} days (${pct}%)</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                <div class="bg-indigo-500 h-2.5 rounded-full" style="width: ${pct}%"></div>
+              </div>
+            </div>`;
+        }).join('');
+
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+            <h3 class="text-base font-bold text-slate-900">Monthly Consistency Heatmap</h3>
+            <div class="grid grid-cols-7 gap-1.5">${heatmapCells}</div>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+            <h3 class="text-base font-bold text-slate-900">Per-Habit Monthly Breakdown</h3>
+            <div class="space-y-3">${habitMonthlyBars}</div>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+            <h3 class="text-base font-bold text-slate-900 mb-3">Daily Trend (This Month)</h3>
+            <div class="relative h-64"><canvas id="reportChartCanvas"></canvas></div>
+          </div>`;
+
+        const mLabels = dateKeys.map(k => String(parseDateKey(k).getDate()));
+        const mValues = dateKeys.map(k => {
+          if (!state.habits.length) return 0;
+          const c = state.habits.filter(h => isChecked(k, h.id)).length;
+          return Math.round((c / state.habits.length) * 100);
+        });
+
+        const ctx = document.getElementById('reportChartCanvas').getContext('2d');
+        reportChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: mLabels,
+            datasets: [{
+              label: 'Daily Completion %',
+              data: mValues,
+              borderColor: '#4f46e5',
+              backgroundColor: 'rgba(79, 70, 229, 0.12)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 3
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }
+            },
+            plugins: { legend: { display: false } }
+          }
+        });
+      }
+
+      // ---------- Render: Labs & HDL ----------
+      function getPrior30DayExerciseRate(dateKey) {
+        const hdlHabits = state.habits.filter(h => h.isHealthExercise);
+        if (!hdlHabits.length) return 0;
+        let done = 0;
+        const possible = 30 * hdlHabits.length;
+        for (let i = 0; i < 30; i++) {
+          const k = addDays(dateKey, -i);
+          hdlHabits.forEach(h => {
+            if (isChecked(k, h.id)) done++;
+          });
+        }
+        return Math.round((done / possible) * 100);
+      }
+
+      function renderLabs() {
+        const sorted = [...state.labs].sort((a, b) => a.date.localeCompare(b.date));
+        const listEl = document.getElementById('labHistoryList');
+
+        if (!sorted.length) {
+          listEl.innerHTML = `<p class="text-sm text-slate-500 py-3">No blood reports logged yet. Add your baseline HDL/cholesterol panel above to start tracking trends alongside your exercise habits.</p>`;
+        } else {
+          listEl.innerHTML = `
+            <table class="w-full text-left text-xs sm:text-sm border-collapse">
+              <thead>
+                <tr class="border-b border-slate-200 text-slate-500">
+                  <th class="py-2 pr-3 font-semibold">Date</th>
+                  <th class="py-2 px-2 font-semibold text-indigo-700">HDL</th>
+                  <th class="py-2 px-2 font-semibold">LDL</th>
+                  <th class="py-2 px-2 font-semibold">Total</th>
+                  <th class="py-2 px-2 font-semibold">Trig.</th>
+                  <th class="py-2 px-2 font-semibold">30d Exercise</th>
+                  <th class="py-2 px-2 font-semibold">Notes</th>
+                  <th class="py-2 pl-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[...sorted].reverse().map(l => {
+                  const exRate = getPrior30DayExerciseRate(l.date);
+                  return `
+                    <tr class="border-b border-slate-100 last:border-0">
+                      <td class="py-2.5 pr-3 font-semibold text-slate-800 whitespace-nowrap">${escapeHtml(l.date)}</td>
+                      <td class="py-2.5 px-2 font-bold text-indigo-700">${l.hdl}</td>
+                      <td class="py-2.5 px-2 text-slate-600">${l.ldl ?? '—'}</td>
+                      <td class="py-2.5 px-2 text-slate-600">${l.total ?? '—'}</td>
+                      <td class="py-2.5 px-2 text-slate-600">${l.triglycerides ?? '—'}</td>
+                      <td class="py-2.5 px-2 font-semibold text-emerald-700">${exRate}%</td>
+                      <td class="py-2.5 px-2 text-slate-500 max-w-[180px] truncate" title="${escapeHtml(l.notes || '')}">${escapeHtml(l.notes || '—')}</td>
+                      <td class="py-2.5 pl-2 text-right">
+                        <button type="button" data-delete-lab="${l.id}" class="text-xs font-semibold text-rose-600 hover:underline">Delete</button>
+                      </td>
+                    </tr>`;
+                }).join('')}
+              </tbody>
+            </table>`;
+        }
+
+        if (labChartInstance) {
+          labChartInstance.destroy();
+          labChartInstance = null;
+        }
+
+        const ctx = document.getElementById('labChartCanvas').getContext('2d');
+        labChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: sorted.length ? sorted.map(l => l.date) : ['No Labs Logged'],
+            datasets: [
+              {
+                label: 'HDL (mg/dL)',
